@@ -1,0 +1,34 @@
+# --- Next.js Frontend Ignores ---
+supplychainfe/node_modules/
+supplychainfe/.next/
+supplychainfe/out/
+supplychainfe/build/
+supplychainfe/.env
+supplychainfe/.env.local
+supplychainfe/.env.development.local
+supplychainfe/.env.test.local
+supplychainfe/.env.production.local
+supplychainfe/npm-debug.log*
+supplychainfe/yarn-debug.log*
+supplychainfe/yarn-error.log*
+supplychainfe/pnpm-debug.log*
+supplychainfe/*.tsbuildinfo
+
+# --- Foundry / Smart Contract Ignores ---
+SupplyChain/out/
+SupplyChain/cache/
+SupplyChain/lib/forge-std/
+SupplyChain/lib/ds-test/
+SupplyChain/.env
+
+# --- OS & IDE General Ignores ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.bak
