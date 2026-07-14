@@ -1,6 +1,6 @@
 export const CONFIG = {
   rpcUrl: 'http://127.0.0.1:8545',
-  contractAddress: '0x59b670e9fA9D0A427751Af201D676719a970857b',
+  contractAddress: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
   mnemonic: 'test test test test test test test test test test test junk',
   shipmentId: 4036,
 };

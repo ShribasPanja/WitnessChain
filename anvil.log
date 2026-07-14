@@ -62,15 +62,67 @@ Gas Limit
 Genesis Timestamp
 ==================
 
-1783948928
+1784057802
 
 Listening on 127.0.0.1:8545
-eth_chainId
+eth_blockNumber
 eth_getTransactionCount
-eth_estimateGas
+eth_getCode
+eth_blockNumber
+eth_gasPrice
+eth_chainId
+eth_getBlockByNumber
+eth_blockNumber
+eth_gasPrice
+eth_getBlockByNumber
+eth_chainId
+eth_getCode
+eth_getTransactionCount
+eth_getBalance
+eth_getBalance
+eth_getCode
+eth_getTransactionCount
+eth_getBalance
+eth_getCode
+eth_getTransactionCount
+eth_getBalance
+eth_getCode
+eth_getTransactionCount
+eth_getBalance
+eth_getCode
+eth_getTransactionCount
+eth_getBalance
+eth_getCode
+eth_getTransactionCount
+eth_chainId
+eth_chainId
+eth_blockNumber
+eth_gasPrice
+eth_chainId
+eth_getBlockByNumber
+eth_chainId
 eth_feeHistory
+eth_feeHistory
+eth_sendRawTransaction
+
+    Transaction: 0xe4c5e2f84adeae3663ec4078159d24ed1eb1f10a9ce309b1f359db966a1b3aa0
+    Contract created: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+    Gas used: 1832757
+
+    Block Number: 1
+    Block Hash: 0x378d7eaae03755efbee63f896b4ca23483b8754cd56f67e68fe7de6a9c4fc68d
+    Block Time: "Tue, 14 Jul 2026 19:36:43 +0000"
+
+eth_getTransactionReceipt
+eth_getTransactionReceipt
 eth_chainId
+eth_getCode
 eth_chainId
-eth_getTransactionCount
+eth_getCode
 eth_call
 eth_chainId
+eth_blockNumber
+eth_getCode
+eth_blockNumber
+eth_getCode
+eth_call
