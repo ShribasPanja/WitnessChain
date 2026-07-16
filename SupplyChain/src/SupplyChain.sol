@@ -38,6 +38,7 @@ contract SupplyChain {
 
     mapping(address => bool) public authorizedPillars;
     mapping(uint256 => Shipment) public shipments;
+    mapping(uint256 => mapping(address => bool)) public shipmentPillars;
 
     // ============================================================
     // EVENTS
@@ -162,7 +163,8 @@ contract SupplyChain {
     function registerShipment(
         uint256 shipmentId,
         address initialKey,
-        uint256 recordingInterval
+        uint256 recordingInterval,
+        address[] calldata allowedPillars
     ) external onlyAdmin validAddress(initialKey) {
         if (shipments[shipmentId].active) {
             revert ShipmentAlreadyExists(shipmentId);
@@ -179,6 +181,10 @@ contract SupplyChain {
             lastPillar: address(0),
             recordingInterval: recordingInterval
         });
+
+        for (uint256 i = 0; i < allowedPillars.length; i++) {
+            shipmentPillars[shipmentId][allowedPillars[i]] = true;
+        }
 
         emit ShipmentRegistered(shipmentId, initialKey, block.timestamp);
     }
@@ -265,7 +271,7 @@ contract SupplyChain {
 
         // 2. Verify Pillar Signature
         address recoveredPillar = recoverSigner(messageHash, pillarSignature);
-        if (!authorizedPillars[recoveredPillar]) {
+        if (!authorizedPillars[recoveredPillar] || !shipmentPillars[shipmentId][recoveredPillar]) {
             revert UnauthorizedPillar(recoveredPillar);
         }
 
@@ -386,6 +392,19 @@ contract SupplyChain {
      */
     function isPillarAuthorized(address pillar) external view returns (bool) {
         return authorizedPillars[pillar];
+    }
+
+    /**
+     * @notice Check if a pillar is authorized for a specific shipment
+     * @param shipmentId The shipment ID
+     * @param pillar The pillar address to check
+     * @return Whether the pillar is authorized for this shipment
+     */
+    function isPillarAuthorizedForShipment(
+        uint256 shipmentId,
+        address pillar
+    ) external view returns (bool) {
+        return authorizedPillars[pillar] && shipmentPillars[shipmentId][pillar];
     }
 
     /**

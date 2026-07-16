@@ -4,6 +4,9 @@ import { useState, useEffect, use } from 'react';
 import { ShieldCheck, ShieldAlert, Cpu, Thermometer, Droplet, Clock, CheckCircle2, AlertTriangle, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
+import { ethers } from 'ethers';
+import { CONFIG, CONTRACT_ABI } from '../../../../lib/config';
+
 interface VerifyData {
   success: boolean;
   shipmentId: string;
@@ -42,22 +45,131 @@ export default function VerifyShipmentPage({ params }: { params: Promise<{ id: s
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const verifyDirectly = async () => {
       try {
-        const res = await fetch(`/api/verify-shipment?shipmentId=${shipmentId}`);
-        const result = await res.json();
-        if (result.success) {
-          setData(result);
-        } else {
-          setError(result.error || 'Failed to verify shipment');
+        const provider = new ethers.JsonRpcProvider(CONFIG.rpcUrl);
+        
+        // 1. Fetch metadata off-chain (name, description, bounds)
+        let metadata = {
+          name: `Shipment #${shipmentId}`,
+          description: 'No registered description.',
+          minTemp: -25.0,
+          maxTemp: -15.0,
+          minHumid: 40.0,
+          maxHumid: 60.0
+        };
+        try {
+          const metaRes = await fetch(`/api/shipment-metadata?shipmentId=${shipmentId}`);
+          const metaData = await metaRes.json();
+          if (metaData.success) {
+            metadata = metaData.metadata;
+          }
+        } catch (e) {
+          console.warn('Could not fetch off-chain metadata:', e);
         }
+
+        // 2. Fetch shipment telemetry logs
+        let telemetryLogs: any[] = [];
+        try {
+          const telRes = await fetch('/api/telemetry');
+          const telData = await telRes.json();
+          if (telData.telemetry) {
+            telemetryLogs = telData.telemetry
+              .filter((t: any) => t.shipmentId === shipmentId)
+              .sort((a: any, b: any) => a.timestamp - b.timestamp);
+          }
+        } catch (e) {
+          console.warn('Could not fetch telemetry logs:', e);
+        }
+
+        // 3. Query contract directly
+        const contract = new ethers.Contract(CONFIG.contractAddress, CONTRACT_ABI, provider);
+        const onChainInfo = await contract.getShipmentInfo(BigInt(shipmentId));
+        
+        const blockchainData = {
+          active: onChainInfo[2],
+          completed: onChainInfo[3],
+          onHold: onChainInfo[4],
+          rotationCount: Number(onChainInfo[1]),
+          contractAddress: CONFIG.contractAddress
+        };
+
+        // 4. Query KeyRotated events on-chain
+        const filter = contract.filters.KeyRotated(BigInt(shipmentId));
+        const rotationEvents = await contract.queryFilter(filter);
+
+        // Map events by rotationCount
+        const eventMap = new Map<number, any>();
+        rotationEvents.forEach((ev: any) => {
+          eventMap.set(Number(ev.args[4]), {
+            pillar: ev.args[1],
+            oldKey: ev.args[2],
+            newKey: ev.args[3]
+          });
+        });
+
+        // 5. Audit logs against boundaries and verify signatures directly
+        const violations: any[] = [];
+        let totalChecks = 0;
+
+        for (let i = 0; i < telemetryLogs.length; i++) {
+          const log = telemetryLogs[i];
+          const tempViolated = log.temperature < metadata.minTemp || log.temperature > metadata.maxTemp;
+          const humidViolated = log.humidity !== undefined && (log.humidity < metadata.minHumid || log.humidity > metadata.maxHumid);
+          
+          let sigValid = true;
+          const rotationIndex = i; // Sequence corresponds to rotationCount
+          const event = eventMap.get(rotationIndex + 1);
+          
+          if (event && log.witnessSignature) {
+            try {
+              const msgHash = ethers.solidityPackedKeccak256(
+                ['uint256', 'address', 'uint256'],
+                [BigInt(shipmentId), event.newKey, BigInt(rotationIndex)]
+              );
+              const recovered = ethers.verifyMessage(ethers.getBytes(msgHash), log.witnessSignature);
+              if (recovered.toLowerCase() !== event.pillar.toLowerCase()) {
+                sigValid = false;
+              }
+            } catch (sigErr) {
+              sigValid = false;
+            }
+          }
+
+          if (tempViolated || humidViolated || !sigValid) {
+            violations.push({
+              timestamp: Number(log.timestamp),
+              temperature: log.temperature,
+              humidity: log.humidity,
+              location: log.location,
+              reason: !sigValid 
+                ? 'Signature verification failed (Pillar key spoofed!)'
+                : tempViolated 
+                  ? `Temperature ${log.temperature}°C out of range (${metadata.minTemp}°C to ${metadata.maxTemp}°C)`
+                  : `Humidity ${log.humidity}% out of range (${metadata.minHumid}% to ${metadata.maxHumid}%)`
+            });
+          }
+          totalChecks++;
+        }
+
+        setData({
+          success: true,
+          shipmentId,
+          metadata,
+          safe: violations.length === 0,
+          violationsCount: violations.length,
+          violations,
+          totalChecks,
+          blockchain: blockchainData
+        });
       } catch (err: any) {
-        setError(err.message || 'Error communicating with validation server');
+        console.error('Direct verification error:', err);
+        setError(err.message || 'Failed to verify shipment directly from blockchain.');
       } finally {
         setLoading(false);
       }
     };
-    fetchData();
+    verifyDirectly();
   }, [shipmentId]);
 
   if (loading) {

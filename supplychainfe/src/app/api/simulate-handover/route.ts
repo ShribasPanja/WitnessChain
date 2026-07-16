@@ -90,16 +90,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Shipment already completed' }, { status: 400 });
     }
 
-    // If shipment is not registered yet, we register it first using admin wallet
-    if (!isActive) {
-      // Initial sensor is index 1
-      const initialSensor = hdNode.deriveChild(1);
-      console.log(`Registering shipment ${shipmentId} with initial key: ${initialSensor.address}`);
-      // Register with a default 1-hour interval (3600 seconds) if not registered on-chain yet
-      const tx = await contract.registerShipment(shipmentId, initialSensor.address, 3600);
-      await tx.wait();
-    }
-
     // 2. Setup the pillar and verify it is authorized
     let privateKeyToUse = pillarKey === 'truck' ? PILLAR_KEYS.truck : PILLAR_KEYS.warehouse;
     if (body.pillarPrivateKey && ethers.isHexString(body.pillarPrivateKey, 32)) {
@@ -107,11 +97,30 @@ export async function POST(request: Request) {
     }
 
     const pillarWallet = new ethers.Wallet(privateKeyToUse, provider);
+
+    // If shipment is not registered yet, we register it first using admin wallet
+    if (!isActive) {
+      // Initial sensor is index 1
+      const initialSensor = hdNode.deriveChild(1);
+      console.log(`Registering shipment ${shipmentId} with initial key: ${initialSensor.address}`);
+      // Register and auto-allow this pillar to witness
+      const tx = await contract.registerShipment(shipmentId, initialSensor.address, 3600, [pillarWallet.address]);
+      await tx.wait();
+    }
+
     const isAuthorized = await contract.isPillarAuthorized(pillarWallet.address);
     if (!isAuthorized) {
       console.log(`Authorizing pillar (${pillarWallet.address}) on-chain`);
       const tx = await contract.authorizePillar(pillarWallet.address);
       await tx.wait();
+    }
+
+    // Verify if this pillar is allowed specifically for this shipment ID on-chain
+    const isAllowedForShipment = await contract.isPillarAuthorizedForShipment(shipmentId, pillarWallet.address);
+    if (!isAllowedForShipment) {
+      return NextResponse.json({
+        error: `Pillar ${pillarWallet.address.slice(0, 10)}... is NOT authorized to witness Shipment #${shipmentId}.`
+      }, { status: 400 });
     }
 
     // 3. Derive current sensor key and new sensor key

@@ -50,6 +50,7 @@ export default function AdminConsole() {
   const [maxTemp, setMaxTemp] = useState<string>('-15');
   const [minHumid, setMinHumid] = useState<string>('40');
   const [maxHumid, setMaxHumid] = useState<string>('60');
+  const [selectedPillars, setSelectedPillars] = useState<string[]>([]);
   
   // Status Update form states
   const [statusShipmentId, setStatusShipmentId] = useState<string>('');
@@ -152,8 +153,13 @@ export default function AdminConsole() {
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(contractAddress, CONTRACT_ABI, signer);
 
-      console.log(`Registering shipment ${shipmentId} with initial key ${initialSensorKey} and interval ${recordingInterval}s`);
-      const tx = await contract.registerShipment(BigInt(shipmentId), initialSensorKey, BigInt(recordingInterval));
+      console.log(`Registering shipment ${shipmentId} with initial key ${initialSensorKey}, interval ${recordingInterval}s, and allowed pillars: ${selectedPillars}`);
+      const tx = await contract.registerShipment(
+        BigInt(shipmentId),
+        initialSensorKey,
+        BigInt(recordingInterval),
+        selectedPillars
+      );
       
       setMessage({ type: 'success', text: 'Transaction broadcasted! Waiting for confirmation...' });
       const receipt = await tx.wait();
@@ -189,6 +195,7 @@ export default function AdminConsole() {
       setMaxTemp('-15');
       setMinHumid('40');
       setMaxHumid('60');
+      setSelectedPillars([]);
     } catch (err: any) {
       console.error(err);
       setMessage({ type: 'error', text: err.reason || err.message || 'Transaction failed' });
@@ -584,6 +591,42 @@ export default function AdminConsole() {
                     <option value="3600">1 Hour</option>
                     <option value="7200">2 Hours</option>
                   </select>
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-400 font-semibold block mb-1.5">Authorized Witness Pillars for this Shipment</label>
+                  {authorizedPillarsList.length === 0 ? (
+                    <div className="text-xs text-slate-500 italic bg-slate-950 p-3 rounded-xl border border-slate-900">
+                      ⚠️ No pillars authorized yet. Please add a pillar using the whitelist panel first.
+                    </div>
+                  ) : (
+                    <div className="bg-slate-950 border border-slate-850 rounded-xl p-3 max-h-[120px] overflow-y-auto space-y-2 scrollbar-none">
+                      {authorizedPillarsList.map((pillar) => {
+                        const isChecked = selectedPillars.includes(pillar);
+                        const label = pillar.toLowerCase() === '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC'.toLowerCase() 
+                          ? 'TruckBeacon-Alpha' 
+                          : pillar.toLowerCase() === '0x90F79bf6EB2c4f870365E785982E1f101E93b906'.toLowerCase() 
+                            ? 'WarehousePillar-Beta' 
+                            : `Custom (${pillar.slice(0, 6)}...${pillar.slice(-4)})`;
+                        return (
+                          <label key={pillar} className="flex items-center gap-2.5 text-xs text-slate-350 font-medium cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                setSelectedPillars(prev =>
+                                  prev.includes(pillar) ? prev.filter(p => p !== pillar) : [...prev, pillar]
+                                );
+                              }}
+                              className="rounded border-slate-800 text-indigo-650 focus:ring-0 focus:ring-offset-0 bg-slate-900"
+                            />
+                            <span>{label}</span>
+                            <span className="text-[10px] text-slate-500 font-mono">({pillar.slice(0, 8)}...)</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 <button
